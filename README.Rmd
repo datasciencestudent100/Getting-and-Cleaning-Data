@@ -1,0 +1,186 @@
+---
+title: "run_analysis.R"
+author: "James Chen"
+date: "Friday, July 25, 2014"
+output: html_document
+---
+
+Due to campatibility issue this README.Rmd can't be run with Knit HTML. 
+However, it can be serves as a documentation for the source run_analysis.R code.
+
+Requirement:
+   
+Create one R script called run_analysis.R that does the following. 
+ 
+Merges the training and the test sets to create one data set.
+Extracts only the measurements on the mean and standard deviation for each measurement. 
+Uses descriptive activity names to name the activities in the data set
+Appropriately labels the data set with descriptive variable names. 
+Creates a second, independent tidy data set with the average of each variable for each activity and each subject. 
+
+
+Setting Directory for Downlaoding and Unzip file
+```{r}
+ProjectDirectory = getwd()
+DataDirectory = "UCI HAR Dataset/"
+dataFile = "dataset.RData"
+download.file("https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip", 
+               "data.zip", quiet = TRUE, mode = "wb")  
+unzip("data.zip")
+```
+
+Reading labels
+```{r}
+  setwd(DataDirectory)
+  
+  temp = read.table("activity_labels.txt", sep = "") 
+  activityLabels = as.character(temp$V2)
+```
+
+Read feature names
+```{r}
+  temp = read.table("features.txt", sep = "")
+  attributeNames = temp$V2
+```
+  
+Read X_train data
+```{r}
+  Xtrain = read.table("train/X_train.txt", sep = "")
+```
+
+Setting attribute names
+```{r}
+names(Xtrain) = attributeNames
+
+```
+  
+Read y_train data
+```{r}
+  Ytrain = read.table("train/y_train.txt", sep = "")
+```
+
+Settting names
+```{r}
+  names(Ytrain) = "Activity"
+```
+
+Factorization
+```{r}
+Ytrain$Activity = as.factor(Ytrain$Activity)
+```
+
+Requirement: Uses descriptive activity names to name the activities in the data set
+Provides access to the levels attribute of a variable
+
+```{r}
+  levels(Ytrain$Activity) = activityLabels
+```
+  
+Read Subject data
+```{r}
+  trainSubjects = read.table("train/subject_train.txt", sep = "")
+  names(trainSubjects) = "subject"
+```
+
+Setting Subject as factor
+```{r}
+  trainSubjects$subject = as.factor(trainSubjects$subject)
+```
+
+Combing data
+```{r}
+  train = cbind(Xtrain, trainSubjects, Ytrain)
+```
+
+Read test data same as train data
+
+```{r}
+
+  Xtest = read.table("test/X_test.txt", sep = "")
+  names(Xtest) = attributeNames
+
+  Ytest = read.table("test/y_test.txt", sep = "")
+  names(Ytest) = "Activity"
+
+  Ytest$Activity = as.factor(Ytest$Activity)
+  levels(Ytest$Activity) = activityLabels
+  
+  testSubjects = read.table("test/subject_test.txt", sep = "")
+  names(testSubjects) = "subject"
+
+  testSubjects$subject = as.factor(testSubjects$subject)
+  test = cbind(Xtest, testSubjects, Ytest)
+```
+
+Save to data file
+```{r}
+  save(train, test, file = dataFile)
+```
+Remove objects for saving memoary
+```{r}
+  rm(train, test, temp, Ytrain, Ytest, Xtrain, Xtest, trainSubjects, testSubjects, 
+     activityLabels, attributeNames)
+```
+
+
+Reload objects
+```{r}
+load(dataFile)
+```
+
+Setting working directory
+```{r}
+setwd(ProjectDirectory)
+```
+
+Adding new columns
+```{r}
+train$Partition = "Train"
+test$Partition = "Test"
+```
+Merges the training and the test sets to create one data set.
+```{r}
+all = rbind(train, test)  # combine sets for visualization
+all$Partition = as.factor(all$Partition)
+```
+
+
+Fielter then Combine
+```{r}
+library(plyr)
+library(reshape)
+
+cindex <-grepl(pattern = "mean\\(|std\\(", names(all), perl=TRUE)
+
+cindex[ (length(cindex)-2):  (length(cindex)) ] <- TRUE
+extract<-all[, cindex]
+```
+
+Save object fo a data file
+```{r}
+save(train, test, extract, file = dataFile)
+
+```
+
+Reload the data file
+```{r}
+load(dataFile)
+setwd(ProjectDirectory)
+```
+
+Melt an object into a form suitable for easy casting.
+```{r}
+tidydata <- melt(extract,id=67:69,measure.vars=1:66)
+```
+
+
+Create final tidy data
+```{r}
+newtidydata<-ddply(tidydata,.(subject,Activity,Partition,variable),summarize,value=mean(value))
+```
+
+Write to a file
+```{r}
+write.table(newtidydata, "mytidydata.txt", sep="\t") 
+```
+
